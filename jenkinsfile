@@ -22,13 +22,13 @@ pipeline{
         }
         stage("Sonarqube Analysis "){
             steps{
-                withSonarQubeEnv('sonar-server') {
+                withSonarQubeEnv('sonar') {
                     sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=amazonclone \
-                    -Dsonar.projectKey=amazonclone '''
+                    -Dsonar.java.binaries=. '''
                 }
             }
         }
-         stage("quality gate"){
+        stage("quality gate"){
            steps {
                 script {
                     waitForQualityGate abortPipeline: false, credentialsId: 'jenkins' 
@@ -42,7 +42,7 @@ pipeline{
         }
         stage('OWASP FS SCAN') {
             steps {
-                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
+                dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DC'
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
         }
@@ -51,17 +51,16 @@ pipeline{
                 sh "trivy fs . > trivyfs.txt"
             }
         }
-        stage("Docker Build & Push"){
+        stage("Docker Build and Tag"){
             steps{
                 script{
                     sh "docker build -t amazonclone ."
                     sh "docker tag amazonclone frawatson/amazonclone:latest "
                     sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-                    sh "docker push frawatson/amazonclone:latest "
                 }
             }
         }
-        stage("TRIVY"){
+        stage("TRIVY IMAGE SCAN") {
             steps{
                 sh "trivy image frawatson/amazonclone:latest > trivyimage.txt" 
             }
@@ -70,7 +69,6 @@ pipeline{
             steps{
                 script {
                     withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker') {
-                        sh "docker tag flights frawatson/amazonclone:latest"
                         sh "docker push frawatson/amazonclone:latest"
                     }
                 }

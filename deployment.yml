@@ -17,4 +17,4 @@ spec:
           image: frawatson/amazonclone:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 4000
+            - containerPort: 3000

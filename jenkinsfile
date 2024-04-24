@@ -5,8 +5,9 @@ pipeline{
         nodejs 'node16'
     }
     environment {
+        DOCKERHUB_CREDENTIALS=credentials('docker-cred')
+        KUBERNETES_CREDENTIALS=credentials('kubeconfig')
         SCANNER_HOME=tool 'sonar-scanner'
-        DOCKERHUB_CREDENTIALS=credentials('docker')
     }
     stages {
         stage('clean workspace'){
@@ -16,7 +17,7 @@ pipeline{
         }
         stage('Checkout from Git'){
             steps{
-                git branch: 'main', url: 'https://github.com/Frawatson/Amazon-app-Deployment-using-terraform-and-jenkins.git'
+                git branch: 'master', url: 'https://github.com/Frawatson/amazonclone.git'
             }
         }
         stage("Sonarqube Analysis "){
@@ -53,21 +54,38 @@ pipeline{
         stage("Docker Build & Push"){
             steps{
                 script{
-                    sh "docker build -t amazon-clone ."
-                    sh "docker tag amazon-clone frawatson/amazon-clone:latest "
+                    sh "docker build -t amazonclone ."
+                    sh "docker tag amazonclone frawatson/amazonclone:latest "
                     sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-                    sh "docker push frawatson/amazon-clone:latest "
+                    sh "docker push frawatson/amazonclone:latest "
                 }
             }
         }
         stage("TRIVY"){
             steps{
-                sh "trivy image frawatson/amazon-clone:latest > trivyimage.txt" 
+                sh "trivy image frawatson/amazonclone:latest > trivyimage.txt" 
             }
         }
-        stage('Deploy to container'){
+        stage ('Docker Push') {
             steps{
-                sh 'docker run -d --name amazon-clone -p 3000:3000 frawatson/amazon-clone:latest'
+                script {
+                    withDockerRegistry(credentialsId: 'docker-cred', toolName: 'docker') {
+                        sh "docker tag flights frawatson/amazonclone:latest"
+                        sh "docker push frawatson/amazonclone:latest"
+                    }
+                }
+            }
+        }
+        stage ('Kubernetes Deploy') {
+            steps{
+                script {
+                    withKubeConfig(caCertificate: '', clusterName: '', contextName: '', credentialsId: 'kubeconfig', namespace: 'dev', restrictKubeConfigAccess: false, serverUrl: 'https://192.168.56.106:6443') {
+                        sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                        sh "kubectl apply -f deployment.yml"
+                        sh "kubectl apply -f service.yml"
+                        sh "kubectl get svc"
+                    }
+                }
             }
         }
     }

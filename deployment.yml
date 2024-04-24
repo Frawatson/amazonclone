@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amazonclone-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: amazonclone
+  template:
+    metadata:
+      labels:
+        app: amazonclone
+    spec:
+      containers:
+        - name: amazonclone
+          image: frawatson/amazonclone:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4000
